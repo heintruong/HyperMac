@@ -74,7 +74,7 @@ echo "   → Designated Requirement phải chứa: certificate root = H\"${ROOT_
 echo ""
 echo "──────────────────────────────────────────────────────────"
 echo "Thêm 2 secret tại:"
-echo "  https://github.com/mrgoose000000-gif/HyperMac/settings/secrets/actions"
+echo "  https://github.com/heintruong/HyperMac/settings/secrets/actions"
 echo ""
 echo "  HYPERMAC_SIGNING_P12_BASE64  = toàn bộ nội dung file .base64"
 echo "  HYPERMAC_SIGNING_P12_PASSWORD = mật khẩu ở trên"

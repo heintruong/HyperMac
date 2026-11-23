@@ -19,6 +19,12 @@ public enum SnapAction {
     case bottomRight
 }
 
+/// Góc neo của cửa sổ trước nhất khi xếp chồng (cascade).
+public enum CascadeAnchor {
+    case topLeft
+    case bottomRight
+}
+
 // MARK: - Window Snap Manager (Rectangle Architecture)
 
 @MainActor
@@ -343,6 +349,106 @@ public class WindowSnapManager: ObservableObject {
         }
         let newFrame = calculateSnapRect(action: action, visible: visible, currentWindowRect: windowRect)
         applyFrame(to: target.element, rect: newFrame, current: windowRect)
+    }
+
+    // MARK: - Cascade (xếp chồng cửa sổ)
+
+    /// Phần màn hình dành cho dải lộ ra của các cửa sổ phía sau (chia đều theo số cửa sổ).
+    // ponytail: tỉ lệ cố định 10%, thêm cài đặt nếu cần chỉnh theo từng màn hình.
+    nonisolated public static let cascadeSpread: CGFloat = 0.10
+    /// Cửa sổ dọc (cao > rộng × 1.15, vd. Android emulator) được xếp thành cột bên phải.
+    nonisolated public static let portraitRatio: CGFloat = 1.15
+
+    /// Khung cho các cửa sổ (theo thứ tự trước → sau, giữ đúng thứ tự đầu vào):
+    /// cửa sổ dọc giữ nguyên kích thước đang mở, xếp cạnh nhau sát mép phải; cửa sổ ngang cascade ở phần còn lại.
+    public static func cascadeLayout(frames: [CGRect], visible: CGRect, anchor: CascadeAnchor) -> [CGRect] {
+        let isPortrait = frames.map { $0.height > $0.width * portraitRatio }
+        let portraitIdx = frames.indices.filter { isPortrait[$0] }
+        let landscapeIdx = frames.indices.filter { !isPortrait[$0] }
+        guard !portraitIdx.isEmpty, !landscapeIdx.isEmpty else {
+            return cascadeRects(count: frames.count, visible: visible, anchor: anchor)
+        }
+        // Giữ nguyên kích thước, chỉ dời vị trí: sát mép phải, căn trên.
+        let colW = portraitIdx.reduce(0) { $0 + frames[$1].width }
+        var result = Array(repeating: CGRect.zero, count: frames.count)
+        var x = visible.maxX - colW
+        for idx in portraitIdx {
+            result[idx] = CGRect(origin: CGPoint(x: x, y: visible.minY), size: frames[idx].size)
+            x += frames[idx].width
+        }
+        let area = CGRect(x: visible.minX, y: visible.minY, width: visible.width - colW, height: visible.height)
+        for (rect, idx) in zip(cascadeRects(count: landscapeIdx.count, visible: area, anchor: anchor), landscapeIdx) {
+            result[idx] = rect
+        }
+        return result
+    }
+
+    /// Khung cho `count` cửa sổ theo thứ tự trước → sau. Mọi cửa sổ cùng kích thước
+    /// (1 - spread) vùng hiển thị; cửa sổ trước nhất nằm ở góc neo, các cửa sổ sau lệch dần
+    /// về góc đối diện nên luôn lộ ra một dải, không bị che hết.
+    public static func cascadeRects(count: Int, visible: CGRect, anchor: CascadeAnchor,
+                                    spread: CGFloat = cascadeSpread) -> [CGRect] {
+        guard count > 0 else { return [] }
+        guard count > 1 else { return [visible] }
+        let w = floor(visible.width * (1 - spread)), h = floor(visible.height * (1 - spread))
+        let dx = (visible.width - w) / CGFloat(count - 1)
+        let dy = (visible.height - h) / CGFloat(count - 1)
+        return (0..<count).map { i in
+            let step = CGFloat(anchor == .topLeft ? i : count - 1 - i)
+            return CGRect(x: round(visible.minX + step * dx), y: round(visible.minY + step * dy), width: w, height: h)
+        }
+    }
+
+    /// Xếp chồng mọi cửa sổ chuẩn đang hiện trên màn hình chứa cửa sổ trước nhất.
+    public func cascadeWindows(_ anchor: CascadeAnchor) {
+        guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                    kCGNullWindowID) as? [[String: Any]] else { return }
+        let myPid = getpid()
+        // CGWindowList trả về theo thứ tự trước → sau.
+        let cgWindows: [(pid: pid_t, rect: CGRect)] = info.compactMap { w in
+            guard (w[kCGWindowLayer as String] as? Int) == 0,
+                  (w[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                  let pid = w[kCGWindowOwnerPID as String] as? pid_t, pid != myPid,
+                  let bounds = w[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary),
+                  rect.width > 100, rect.height > 80 else { return nil }
+            return (pid, rect)
+        }
+        let screens = orderedScreens()
+        guard let front = cgWindows.first, !screens.isEmpty else { return }
+        let screen = screenContaining(windowRect: front.rect, in: screens)
+
+        // Ghép cửa sổ CG với AXUIElement cùng app theo khung (CG và AX cùng toạ độ gốc trên-trái).
+        var axByPid: [pid_t: [(element: AXUIElement, frame: CGRect)]] = [:]
+        var targets: [(element: AXUIElement, frame: CGRect)] = []
+        for w in cgWindows where screenContaining(windowRect: w.rect, in: screens) == screen {
+            if axByPid[w.pid] == nil {
+                let app = AXUIElementCreateApplication(w.pid)
+                _ = AXUIElementSetMessagingTimeout(app, 0.1)
+                var ref: CFTypeRef?
+                let wins = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &ref) == .success
+                    ? (ref as? [AXUIElement] ?? []) : []
+                axByPid[w.pid] = wins.compactMap { el in
+                    var sub: CFTypeRef?
+                    AXUIElementCopyAttributeValue(el, kAXSubroleAttribute as CFString, &sub)
+                    guard (sub as? String) == (kAXStandardWindowSubrole as String),
+                          let f = readFrame(of: el) else { return nil }
+                    return (el, f)
+                }
+            }
+            if let idx = axByPid[w.pid]?.firstIndex(where: {
+                abs($0.frame.minX - w.rect.minX) < 2 && abs($0.frame.minY - w.rect.minY) < 2 &&
+                abs($0.frame.width - w.rect.width) < 2 && abs($0.frame.height - w.rect.height) < 2
+            }), let match = axByPid[w.pid]?.remove(at: idx) {
+                targets.append(match)
+            }
+        }
+
+        let rects = Self.cascadeLayout(frames: targets.map(\.frame), visible: Self.axVisibleFrame(for: screen), anchor: anchor)
+        appLog("🪟 Cascade \(anchor): \(targets.count) windows on [\(screen.localizedName)]")
+        for (target, rect) in zip(targets, rects) {
+            applyFrame(to: target.element, rect: rect, current: target.frame)
+        }
     }
 
     // MARK: - Cross-Display Window Transfer (Option + Command + Arrow keys)

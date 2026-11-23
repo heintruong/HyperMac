@@ -43,10 +43,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let pop = NSPopover()
         pop.contentSize = NSSize(width: 380, height: 570)
         pop.behavior = .transient
+        pop.animates = false
         pop.delegate = self
         pop.contentViewController = NSHostingController(
             rootView: MainView(displayManager: DisplayManager.shared)
-                .background(Color(nsColor: .windowBackgroundColor))
         )
         self.popover = pop
 
@@ -83,19 +83,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         _ = SystemMonitorManager.shared
         _ = ScreenshotManager.shared
         _ = MenuBarHiderManager.shared
-        _ = ActivationManager.shared
-
-        // Tự động mở bảng kích hoạt nếu đây là lần đầu người dùng khởi động ứng dụng
-        if !ActivationManager.shared.isActivated {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
-                guard let self = self, let button = self.statusItem?.button else { return }
-                if !self.popover.isShown {
-                    self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                    self.popover.contentViewController?.view.window?.makeKey()
-                    NSApp.activate(ignoringOtherApps: true)
-                }
-            }
-        }
+        _ = TrackpadSwipeSwitcher.shared
 
         // Register for display reconfiguration
         CGDisplayRegisterReconfigurationCallback(displayReconfigCallback, nil)
@@ -116,8 +104,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         MenuBarHiderManager.shared.removeStatusItem()
         VirtualDisplayManager.shared.destroyVirtualDisplay()
         FanManager.shared.restoreSystemSync()
-        // Phục hồi đồng bộ công tắc sạc SMC khi thoát app (nhả CHTE/CH0B nhưng giữ trần CHLT nếu đang bật bảo vệ)
-        BatteryManager.shared.restoreOnTerminateSync()
         // Chỉ trả bảng gamma màn ngoài về ColorSync nếu HyperMac thực sự đã điều chỉnh gamma trước đó
         DisplayManager.shared.restoreHardwareGammaIfNeeded()
     }
@@ -154,14 +140,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         if ProcessInfo.processInfo.environment["HYPERMAC_PREVIEW_EXPAND_PERMS"] == "1" {
             PermissionsManager.shared.isExpanded = true
-        }
-
-        if ProcessInfo.processInfo.environment["HYPERMAC_PREVIEW_DONATE"] == "1" {
-            UpdateManager.shared.showDonateModal = true
-        }
-
-        if ProcessInfo.processInfo.environment["HYPERMAC_PREVIEW_ACTIVATION"] == "1" {
-            ActivationManager.shared.isActivated = false
         }
 
         if ProcessInfo.processInfo.environment["HYPERMAC_PREVIEW_THERMAL"] == "1" {

@@ -5,11 +5,10 @@
 [![Architecture](https://img.shields.io/badge/architecture-Apple%20Silicon%20(arm64)-brightgreen.svg)](https://github.com/mrgoose000000-gif/HyperMac)
 [![Memory Footprint](https://img.shields.io/badge/RAM-~45MB-success.svg)](https://github.com/mrgoose000000-gif/HyperMac)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Donate](https://img.shields.io/badge/❤️_Donate-Ủng_hộ-ff69b4.svg)](#-ủng-hộ-phát-triển-donate)
 
 > 🚀 **HyperMac** là bộ công cụ tối thượng viết bằng **Swift thuần** dành riêng cho máy Mac chạy chip **Apple Silicon (M1, M2, M3, M4, M5 — Air / Pro / Max / Ultra)**. Ứng dụng gom trọn tính năng của **9 ứng dụng rời rạc** vào một icon duy nhất trên thanh Menu Bar với mức tiêu hao RAM siêu nhẹ **chỉ ~45MB**:
 > 
-> **Bartender & Hidden Bar** (Gom gọn thanh Menu Bar) + **CleanMyMac & AppCleaner** (Dọn rác hệ thống & Gỡ app tận gốc) + **Rectangle** (Chia cửa sổ) + **AltTab** (Chuyển cửa sổ đa hàng) + **Finder Cut & Paste** (Cắt & Dán tệp Windows-style) + **Maccy** (Lịch sử Clipboard) + **AlDente Pro** (Khóa sạc 80% SMC) + **BetterDisplay** (Chỉnh sáng màn ngoài F1/F2) + **Nhiệt độ & Điều khiển quạt** (Đo nhiệt độ nhân CPU/GPU từ AppleSMC + cảm biến HID PMU & điều khiển đa quạt) + **Đo tốc độ chép file** (ổ vật lý & NAS qua LAN).
+> **Bartender & Hidden Bar** (Gom gọn thanh Menu Bar) + **CleanMyMac & AppCleaner** (Dọn rác hệ thống & Gỡ app tận gốc) + **Rectangle** (Chia cửa sổ) + **AltTab** (Chuyển cửa sổ đa hàng) + **Finder Cut & Paste** (Cắt & Dán tệp Windows-style) + **Maccy** (Lịch sử Clipboard) + **BetterDisplay** (Chỉnh sáng màn ngoài F1/F2) + **Nhiệt độ & Điều khiển quạt** (Đo nhiệt độ nhân CPU/GPU từ AppleSMC + cảm biến HID PMU & điều khiển đa quạt) + **Đo tốc độ chép file** (ổ vật lý & NAS qua LAN).
 
 ---
 
@@ -120,11 +119,10 @@ Lưu trữ lịch sử văn bản, hình ảnh, liên kết, mã màu đã sao c
 
 ---
 
-### 🔋 5. Khóa Sạc Pin 80% & Sleep Guard (Thay thế AlDente Pro)
-Bảo vệ phần cứng tối đa, đặc biệt phù hợp cho các dòng MacBook cắm sạc liên tục:
-* **Khóa sạc ở 80% (SMC AC Bypass):** Ghi trực tiếp vào chip điều khiển nguồn Apple Silicon, ngắt dòng điện vào cell pin khi đạt 80%. Máy chuyển sang chạy điện củ sạc 100%, triệt tiêu nguy cơ phồng pin, chai pin.
-* **Nút Sạc Đầy (Top-Up 100%):** Bấm nút sạc đầy tạm thời khi chuẩn bị mang máy ra ngoài.
-* **Sleep Guard:** Tự động duy trì lệnh ngắt sạc khi gập máy và tự tắt Bluetooth để chống tụt pin qua đêm (0% hao hụt pin).
+### 🔋 5. Pin, Sleep Guard & Gập Máy Vẫn Chạy
+* **Giới hạn sạc:** dùng tính năng có sẵn của macOS (Cài đặt hệ thống → Pin → Sạc). Bản fork này đã bỏ khóa sạc riêng.
+* **Sleep Guard:** tự tắt Bluetooth khi gập máy để chống tụt pin qua đêm, báo cáo hao pin khi mở máy.
+* **Gập máy vẫn chạy:** không ngủ khi gập nắp, kể cả khi không cắm màn ngoài (thẻ "Chống sleep màn").
 
 ---
 
@@ -415,28 +413,6 @@ chmod +x build.sh
 
 ---
 
-## 💖 Ủng Hộ Phát Triển (Donate)
-
-HyperMac là dự án phần mềm mã nguồn mở hoàn toàn **miễn phí** và phi lợi nhuận. Nếu HyperMac giúp ích cho công việc và trải nghiệm sử dụng máy Mac hàng ngày của bạn, việc gửi tặng tác giả một ly cà phê là nguồn động viên vô cùng to lớn để mình tiếp tục duy trì và nâng cấp phần mềm! ☕✨
-
-<div align="center">
-
-<img src="Resources/donate_qr.jpg" alt="Mã QR Donate HyperMac" width="260" style="border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);" />
-
-<br/>
-
-**Nguyễn Khắc Đại**  
-*Quét mã bằng mọi ứng dụng ngân hàng / ví điện tử*
-
-> *"Thật sự cảm ơn bạn đã nhấn vào nút này, từ tận đáy lòng, mình luôn trân trọng số tiền mọi người ủng hộ kể cả ít hay nhiều, điều đó cho mình một động lực rất lớn để tiếp tục phát triển phần mềm này.*  
-> *Mình xin chân thành cảm ơn tấm lòng của mọi người 😊😊😊.*  
-> *Nếu được, rất mong bạn có thể nhắn cho mình thông tin donate qua FB để mình có thể gửi lời cảm ơn trực tiếp đến bạn ❤️"*
-
-[![Nhắn tin Facebook cho tác giả](https://img.shields.io/badge/💬_Nhắn_tin_qua_Facebook_cho_tác_giả-1877F2?style=for-the-badge&logo=facebook&logoColor=white)](https://dub.sh/tL0ar4i)
-
-</div>
-
----
 
 ## 👤 Tác Giả & Bản Quyền (License)
 - **Copyright © 2026 Nguyễn Khắc Đại** ([@khacdai24](https://github.com/khacdai24) & [mrgoose000000-gif](https://github.com/mrgoose000000-gif)).

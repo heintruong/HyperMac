@@ -38,6 +38,13 @@ public class CaffeinateManager: ObservableObject {
     private var assertionID: IOPMAssertionID = 0
     private var countdownTimer: Timer?
 
+    /// Gập máy vẫn chạy: `pmset -a disablesleep 1` qua helper root. Không lưu qua lần mở app:
+    /// mở lại app luôn trả về mặc định (tắt) để máy không bị kẹt chế độ không ngủ.
+    @Published public var isLidAwake: Bool = false
+    @Published public var lidAwakeError: String?
+    @Published public var isLidAwakeBusy: Bool = false
+    private static let lidAwakeAppliedKey = "lid_awake_applied"
+
     private init() {
         // Register cleanup on app quit so assertion is never leaked
         NotificationCenter.default.addObserver(
@@ -47,8 +54,43 @@ public class CaffeinateManager: ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.disable()
+                self?.restoreLidSleepSync()
             }
         }
+
+        // App bị crash/force-quit khi đang bật → setting pmset vẫn còn; trả về bình thường.
+        if UserDefaults.standard.bool(forKey: Self.lidAwakeAppliedKey) {
+            setLidAwake(false)
+        }
+    }
+
+    public func setLidAwake(_ on: Bool) {
+        guard !isLidAwakeBusy else { return }
+        isLidAwakeBusy = true
+        lidAwakeError = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let (out, code) = shell(PrivilegedHelper.sudo("sleep-disable \(on ? "on" : "off") 2>&1"))
+            DispatchQueue.main.async {
+                self.isLidAwakeBusy = false
+                if code == 0 {
+                    self.isLidAwake = on
+                    UserDefaults.standard.set(on, forKey: Self.lidAwakeAppliedKey)
+                    appLog("💻 Lid awake: \(on ? "ON" : "OFF")")
+                } else {
+                    self.lidAwakeError = tr("Cần cài/cập nhật helper (v\(PrivilegedHelper.requiredVersion)).",
+                                            "Install/update the helper (v\(PrivilegedHelper.requiredVersion)).")
+                    appLog("⚠️ Lid awake failed (\(code)): \(out)")
+                }
+            }
+        }
+    }
+
+    /// Gọi đồng bộ khi thoát app để không để máy kẹt ở chế độ không ngủ.
+    public func restoreLidSleepSync() {
+        guard isLidAwake else { return }
+        _ = shell(PrivilegedHelper.sudo("sleep-disable off"))
+        isLidAwake = false
+        UserDefaults.standard.set(false, forKey: Self.lidAwakeAppliedKey)
     }
 
     public func toggle() {

@@ -67,12 +67,14 @@ struct VersionManifest: Decodable {
 public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
     public static let shared = UpdateManager()
 
+    /// Repo GitHub dùng để kiểm tra/tải bản cập nhật (bản fork).
+    public static let repo = "heintruong/HyperMac"
+
     public static let currentVersion: String = "1.9.8"
 
     @Published public var state: UpdateState = .idle
     @Published public var downloadProgress: Double = 0.0
     @Published public var showUpdateModal: Bool = false
-    @Published public var showDonateModal: Bool = false
     @Published public var hasNewUpdate: Bool = false
     @Published public var latestVersionString: String = ""
     @Published public var releaseNotes: String = ""
@@ -148,7 +150,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
             var apiUpToDate: (ver: String, notes: String, dl: URL?, html: URL?)? = nil
 
             // Attempt 1: Standard GitHub Releases API
-            let releaseUrl = URL(string: "https://api.github.com/repos/mrgoose000000-gif/HyperMac/releases/latest")!
+            let releaseUrl = URL(string: "https://api.github.com/repos/\(Self.repo)/releases/latest")!
             var request = URLRequest(url: releaseUrl)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
             request.setValue("HyperMac-App", forHTTPHeaderField: "User-Agent")
@@ -195,7 +197,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
             }
 
             // Attempt 2: Fast raw manifest fallback (raw.githubusercontent.com - no rate limits)
-            let manifestUrl = URL(string: "https://raw.githubusercontent.com/mrgoose000000-gif/HyperMac/main/version.json")!
+            let manifestUrl = URL(string: "https://raw.githubusercontent.com/\(Self.repo)/main/version.json")!
             var manifestReq = URLRequest(url: manifestUrl)
             manifestReq.cachePolicy = .reloadIgnoringLocalCacheData
             manifestReq.timeoutInterval = 8.0
@@ -209,7 +211,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
                         let manifest = try decoder.decode(VersionManifest.self, from: mData)
 
                         let dlUrl = manifest.downloadUrl.flatMap { URL(string: $0) }
-                        let pageUrl = manifest.htmlUrl.flatMap { URL(string: $0) } ?? URL(string: "https://github.com/mrgoose000000-gif/HyperMac/releases")
+                        let pageUrl = manifest.htmlUrl.flatMap { URL(string: $0) } ?? URL(string: "https://github.com/\(Self.repo)/releases")
                         let notes = manifest.notes ?? manifest.name ?? "Bản cập nhật mới dành cho HyperMac."
 
                         self.handleDiscoveredVersion(
@@ -291,7 +293,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
         if Self.updatesDisabled { return }
         guard let url = downloadUrl else {
             // If no direct binary asset attached, open GitHub release page
-            if let html = htmlUrl ?? URL(string: "https://github.com/mrgoose000000-gif/HyperMac/releases") {
+            if let html = htmlUrl ?? URL(string: "https://github.com/\(Self.repo)/releases") {
                 NSWorkspace.shared.open(html)
             }
             return
@@ -327,7 +329,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
     }
 
     public func openReleasePage() {
-        if let url = htmlUrl ?? URL(string: "https://github.com/mrgoose000000-gif/HyperMac/releases") {
+        if let url = htmlUrl ?? URL(string: "https://github.com/\(Self.repo)/releases") {
             NSWorkspace.shared.open(url)
         }
     }
