@@ -51,4 +51,15 @@ struct CascadeTests {
             }
         }
     }
+
+    @Test func stackNeighborFollowsScreenPosition() {
+        // Thứ tự đầu vào là z-order (trước → sau), không phải vị trí trên màn hình.
+        let frames = [CGRect(x: 100, y: 90, width: 1800, height: 1080),  // giữa
+                      CGRect(x: 0, y: 30, width: 1800, height: 1080),    // trên cùng
+                      CGRect(x: 200, y: 150, width: 1800, height: 1080)] // dưới cùng
+        #expect(WindowSnapManager.stackNeighbor(frames: frames, focused: 0, up: true) == 1)
+        #expect(WindowSnapManager.stackNeighbor(frames: frames, focused: 0, up: false) == 2)
+        #expect(WindowSnapManager.stackNeighbor(frames: frames, focused: 1, up: true) == nil)
+        #expect(WindowSnapManager.stackNeighbor(frames: frames, focused: 2, up: false) == nil)
+    }
 }
