@@ -71,7 +71,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
     /// Repo GitHub dùng để kiểm tra/tải bản cập nhật (bản fork).
     public static let repo = "heintruong/HyperMac"
 
-    public static let currentVersion: String = "1.9.8"
+    public static let currentVersion: String = "1.10.0"
 
     @Published public var state: UpdateState = .idle
     @Published public var downloadProgress: Double = 0.0

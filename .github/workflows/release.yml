@@ -44,9 +44,9 @@ jobs:
           }
 
           if [ -z "${SIGNING_P12_BASE64}" ]; then
-            echo "::warning::Chưa có secret HYPERMAC_SIGNING_P12_BASE64 — build sẽ ký ad-hoc."
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            # Bản ad-hoc sẽ bị updater từ chối và làm mất quyền Accessibility → không phát hành.
+            # Chưa có secret thì build + ký trên máy local rồi `gh release create … build/HyperMac.zip`.
+            fail "Chưa có secret HYPERMAC_SIGNING_P12_BASE64 — không phát hành bản ký ad-hoc."
           fi
           if [ -z "${SIGNING_P12_PASSWORD}" ]; then
             fail "Thiếu secret HYPERMAC_SIGNING_P12_PASSWORD."
