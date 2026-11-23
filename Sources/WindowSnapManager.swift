@@ -195,13 +195,47 @@ public class WindowSnapManager: ObservableObject {
 
     // MARK: - Apply Frame to Window (Robust Display Transfer)
 
-    private func applyFrame(to window: AXUIElement, rect: CGRect, current: CGRect, restoring: Bool = false) {
+    private func applyFrame(to window: AXUIElement, rect: CGRect, current: CGRect, restoring: Bool = false,
+                            animated: Bool = false) {
         var newPos = rect.origin
         var newSize = rect.size
         guard let posVal = AXValueCreate(.cgPoint, &newPos),
               let sizeVal = AXValueCreate(.cgSize, &newSize) else { return }
         let key = WindowKey(element: window)
         let token = frameHistory.begin(key, current: current, target: rect, restoring: restoring)
+        let distance = hypot(rect.minX - current.minX, rect.minY - current.minY)
+        if animated, distance > 8, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            // Đổi kích thước 1 lần (app chỉ vẽ lại 1 lần), rồi chỉ trượt vị trí — WindowServer tự dời, rất nhẹ.
+            AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeVal)
+            slide(window, from: current.origin, to: rect.origin, key: key, token: token) { [weak self] in
+                self?.commitFrame(window, rect: rect, posVal: posVal, sizeVal: sizeVal, key: key, token: token)
+            }
+            return
+        }
+        commitFrame(window, rect: rect, posVal: posVal, sizeVal: sizeVal, key: key, token: token)
+    }
+
+    /// Trượt vị trí cửa sổ với ease-out ~0.2s. Dừng ngay nếu có thao tác khác chen vào hoặc app không phản hồi.
+    private func slide(_ window: AXUIElement, from: CGPoint, to: CGPoint, key: WindowKey, token: UInt64,
+                       completion: @escaping () -> Void) {
+        let duration = 0.2
+        let start = CACurrentMediaTime()
+        _ = AXUIElementSetMessagingTimeout(window, 0.05)
+        Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] timer in MainActor.assumeIsolated {
+            guard let self, self.frameHistory.isCurrent(key, token: token) else { timer.invalidate(); return }
+            let p = min(1, (CACurrentMediaTime() - start) / duration)
+            if p >= 1 { timer.invalidate(); completion(); return }
+            let e = 1 - pow(1 - p, 3)
+            var pt = CGPoint(x: round(from.x + (to.x - from.x) * e), y: round(from.y + (to.y - from.y) * e))
+            guard let v = AXValueCreate(.cgPoint, &pt),
+                  AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, v) == .success else {
+                timer.invalidate(); completion(); return
+            }
+        } }
+    }
+
+    private func commitFrame(_ window: AXUIElement, rect: CGRect, posVal: AXValue, sizeVal: AXValue,
+                             key: WindowKey, token: UInt64) {
         AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, posVal)
         AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeVal)
 
@@ -447,7 +481,7 @@ public class WindowSnapManager: ObservableObject {
         let rects = Self.cascadeLayout(frames: targets.map(\.frame), visible: Self.axVisibleFrame(for: screen), anchor: anchor)
         appLog("🪟 Cascade \(anchor): \(targets.count) windows on [\(screen.localizedName)]")
         for (target, rect) in zip(targets, rects) {
-            applyFrame(to: target.element, rect: rect, current: target.frame)
+            applyFrame(to: target.element, rect: rect, current: target.frame, animated: true)
         }
     }
 
