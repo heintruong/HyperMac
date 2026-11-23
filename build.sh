@@ -7,12 +7,20 @@ echo "║          HyperMac — Build Script         ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
+# Đóng app êm để chạy cleanup (pin, quạt, gập máy), chỉ kill -9 nếu app không thoát sau 5s.
+quit_hypermac() {
+    if pgrep -x HyperMac >/dev/null; then
+        osascript -e 'tell application id "com.opensource.hypermac" to quit' >/dev/null 2>&1 || true
+        for _ in $(seq 1 25); do pgrep -x HyperMac >/dev/null || break; sleep 0.2; done
+    fi
+    pkill -9 HyperMac 2>/dev/null || true
+    pkill -9 DisplayControl 2>/dev/null || true
+}
+
 # ── Step 0: Terminate existing instances ──
 if [ "$CI" != "true" ] && [ "$1" != "--no-run" ]; then
     echo "🛑 Stopping any running instances..."
-    pkill -9 HyperMac 2>/dev/null || true
-    pkill -9 DisplayControl 2>/dev/null || true
-    sleep 0.5
+    quit_hypermac
 fi
 
 # ── Step 1: Build (Default: Apple Silicon chip M / Optional: --universal) ──
@@ -176,9 +184,7 @@ fi
 
 # ── Step 4: Install to /Applications/ ──
 echo "🚀 Installing to /Applications/HyperMac.app..."
-pkill -9 HyperMac 2>/dev/null || true
-pkill -9 DisplayControl 2>/dev/null || true
-sleep 0.3
+quit_hypermac
 rm -rf /Applications/HyperMac.app
 cp -R "${APP_DIR}" /Applications/HyperMac.app
 rm -rf /Applications/DisplayControl.app 2>/dev/null || true

@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Combine
+import Security
 
 // MARK: - Update Status States
 
@@ -67,12 +68,14 @@ struct VersionManifest: Decodable {
 public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelegate {
     public static let shared = UpdateManager()
 
+    /// Repo GitHub dùng để kiểm tra/tải bản cập nhật (bản fork).
+    public static let repo = "heintruong/HyperMac"
+
     public static let currentVersion: String = "1.9.8"
 
     @Published public var state: UpdateState = .idle
     @Published public var downloadProgress: Double = 0.0
     @Published public var showUpdateModal: Bool = false
-    @Published public var showDonateModal: Bool = false
     @Published public var hasNewUpdate: Bool = false
     @Published public var latestVersionString: String = ""
     @Published public var releaseNotes: String = ""
@@ -87,6 +90,27 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
     private var htmlUrl: URL?
     private var downloadRetryCount: Int = 0
     private static let maxDownloadRetries: Int = 2
+
+    /// Thư mục tạm riêng của user ($TMPDIR, quyền 700) cho file cập nhật — không dùng /tmp dùng chung.
+    nonisolated private static var updateWorkDir: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("HyperMac-update", isDirectory: true)
+    }
+
+    /// Bản cập nhật phải được ký bằng đúng chứng chỉ của app đang chạy (Designated Requirement của chính nó).
+    /// App đang chạy ký ad-hoc → DR gắn với cdhash → mọi bản cập nhật đều bị từ chối (an toàn).
+    nonisolated static func isSignedLikeSelf(_ appPath: String) -> Bool {
+        var me: SecCode?
+        var meStatic: SecStaticCode?
+        var requirement: SecRequirement?
+        var candidate: SecStaticCode?
+        guard SecCodeCopySelf([], &me) == errSecSuccess, let me,
+              SecCodeCopyStaticCode(me, [], &meStatic) == errSecSuccess, let meStatic,
+              SecCodeCopyDesignatedRequirement(meStatic, [], &requirement) == errSecSuccess, let requirement,
+              SecStaticCodeCreateWithPath(URL(fileURLWithPath: appPath) as CFURL, [], &candidate) == errSecSuccess,
+              let candidate else { return false }
+        let flags = SecCSFlags(rawValue: SecCSFlags.RawValue(kSecCSCheckAllArchitectures | kSecCSCheckNestedCode | kSecCSStrictValidate))
+        return SecStaticCodeCheckValidity(candidate, flags, requirement) == errSecSuccess
+    }
 
     public override init() {
         super.init()
@@ -148,7 +172,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
             var apiUpToDate: (ver: String, notes: String, dl: URL?, html: URL?)? = nil
 
             // Attempt 1: Standard GitHub Releases API
-            let releaseUrl = URL(string: "https://api.github.com/repos/mrgoose000000-gif/HyperMac/releases/latest")!
+            let releaseUrl = URL(string: "https://api.github.com/repos/\(Self.repo)/releases/latest")!
             var request = URLRequest(url: releaseUrl)
             request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
             request.setValue("HyperMac-App", forHTTPHeaderField: "User-Agent")
@@ -195,7 +219,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
             }
 
             // Attempt 2: Fast raw manifest fallback (raw.githubusercontent.com - no rate limits)
-            let manifestUrl = URL(string: "https://raw.githubusercontent.com/mrgoose000000-gif/HyperMac/main/version.json")!
+            let manifestUrl = URL(string: "https://raw.githubusercontent.com/\(Self.repo)/main/version.json")!
             var manifestReq = URLRequest(url: manifestUrl)
             manifestReq.cachePolicy = .reloadIgnoringLocalCacheData
             manifestReq.timeoutInterval = 8.0
@@ -209,7 +233,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
                         let manifest = try decoder.decode(VersionManifest.self, from: mData)
 
                         let dlUrl = manifest.downloadUrl.flatMap { URL(string: $0) }
-                        let pageUrl = manifest.htmlUrl.flatMap { URL(string: $0) } ?? URL(string: "https://github.com/mrgoose000000-gif/HyperMac/releases")
+                        let pageUrl = manifest.htmlUrl.flatMap { URL(string: $0) } ?? URL(string: "https://github.com/\(Self.repo)/releases")
                         let notes = manifest.notes ?? manifest.name ?? "Bản cập nhật mới dành cho HyperMac."
 
                         self.handleDiscoveredVersion(
@@ -291,7 +315,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
         if Self.updatesDisabled { return }
         guard let url = downloadUrl else {
             // If no direct binary asset attached, open GitHub release page
-            if let html = htmlUrl ?? URL(string: "https://github.com/mrgoose000000-gif/HyperMac/releases") {
+            if let html = htmlUrl ?? URL(string: "https://github.com/\(Self.repo)/releases") {
                 NSWorkspace.shared.open(html)
             }
             return
@@ -327,7 +351,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
     }
 
     public func openReleasePage() {
-        if let url = htmlUrl ?? URL(string: "https://github.com/mrgoose000000-gif/HyperMac/releases") {
+        if let url = htmlUrl ?? URL(string: "https://github.com/\(Self.repo)/releases") {
             NSWorkspace.shared.open(url)
         }
     }
@@ -372,8 +396,11 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
             return
         }
 
-        let tempZip = URL(fileURLWithPath: "/tmp/HyperMac_update.zip")
-        try? FileManager.default.removeItem(at: tempZip)
+        let workDir = Self.updateWorkDir
+        try? FileManager.default.removeItem(at: workDir)
+        try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+        let tempZip = workDir.appendingPathComponent("HyperMac_update.zip")
 
         do {
             let attrs = try FileManager.default.attributesOfItem(atPath: location.path)
@@ -411,7 +438,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
     /// Giải nén + kiểm tra gói cập nhật TRƯỚC khi thoát app.
     /// Nếu zip hỏng/không phải HyperMac, app đang chạy vẫn nguyên vẹn.
     private func stageAndInstall(zipPath: String) {
-        let staging = "/tmp/HyperMac_staging"
+        let staging = Self.updateWorkDir.appendingPathComponent("staging").path
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
@@ -451,6 +478,15 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
                 return
             }
 
+            guard Self.isSignedLikeSelf(appPath) else {
+                appLog("⛔️ UpdateManager: bản cập nhật không được ký bằng chứng chỉ của app hiện tại — từ chối cài")
+                try? fm.removeItem(at: Self.updateWorkDir)
+                DispatchQueue.main.async {
+                    self?.state = .failed("Bản cập nhật không được ký bằng chứng chỉ của bạn nên đã bị từ chối. App hiện tại không bị ảnh hưởng.")
+                }
+                return
+            }
+
             DispatchQueue.main.async {
                 self?.performInPlaceUpdate(stagedAppPath: appPath, zipPath: zipPath)
             }
@@ -461,7 +497,8 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
 
     private func performInPlaceUpdate(stagedAppPath: String, zipPath: String) {
         let currentPid = ProcessInfo.processInfo.processIdentifier
-        let updaterScriptPath = "/tmp/hypermac_in_place_updater.sh"
+        let updaterScriptPath = Self.updateWorkDir.appendingPathComponent("updater.sh").path
+        let logPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/hypermac_updater.log").path
 
         let appPath = "/Applications/HyperMac.app"
         let newPath = "/Applications/.HyperMac.new"
@@ -469,7 +506,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
 
         let script = """
         #!/bin/bash
-        exec > /tmp/hypermac_updater.log 2>&1
+        exec > "\(logPath)" 2>&1
 
         echo "🔄 HyperMac Updater started for PID \(currentPid)..."
         PID="\(currentPid)"
@@ -497,7 +534,8 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
             open "$APP"
             exit 1
         fi
-        xattr -cr "$NEW" 2>/dev/null || true
+        # Chữ ký đã được kiểm (đúng chứng chỉ của bạn) trước khi tới đây; chỉ gỡ cờ quarantine.
+        xattr -dr com.apple.quarantine "$NEW" 2>/dev/null || true
 
         # 3. Đổi chỗ có backup để rollback nếu lỗi
         rm -rf "$BAK"
@@ -515,7 +553,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
         fi
 
         # 4. Dọn dẹp
-        rm -rf "$STAGED" "\(zipPath)" "\(updaterScriptPath)"
+        rm -rf "\(Self.updateWorkDir.path)"
         echo "✅ Update complete."
         """
 

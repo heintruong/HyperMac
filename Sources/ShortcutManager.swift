@@ -43,6 +43,7 @@ enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
     case screenshot, clipboard, switchWindows
     case leftHalf, rightHalf, topHalf, bottomHalf, maximize, center, restoreWindow
     case topLeft, topRight, bottomLeft, bottomRight
+    case cascadeTopLeft, cascadeBottomRight
     case nextDisplay, previousDisplay, restorePrimaryDisplay, menuBar
     var id: String { rawValue }
     var title: String {
@@ -61,6 +62,8 @@ enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
         case .topRight: return tr("Góc trên phải", "Top right")
         case .bottomLeft: return tr("Góc dưới trái", "Bottom left")
         case .bottomRight: return tr("Góc dưới phải", "Bottom right")
+        case .cascadeTopLeft: return tr("Xếp chồng từ trên trái", "Cascade from top left")
+        case .cascadeBottomRight: return tr("Xếp chồng từ dưới phải", "Cascade from bottom right")
         case .nextDisplay: return tr("Sang màn hình tiếp", "Next display")
         case .previousDisplay: return tr("Sang màn hình trước", "Previous display")
         case .restorePrimaryDisplay: return tr("Mở màn hình chính", "Turn on built-in screen")
@@ -85,6 +88,8 @@ enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
         case .topRight: return [34,92].map { .init($0, co) }
         case .bottomLeft: return [38,83].map { .init($0, co) }
         case .bottomRight: return [40,85].map { .init($0, co) }
+        case .cascadeTopLeft: return [.init(33, co)]     // ⌃⌥[
+        case .cascadeBottomRight: return [.init(30, co)] // ⌃⌥]
         case .nextDisplay: return [124,126].flatMap { [ShortcutBinding($0, oc), .init($0, oc.union(.maskControl))] }
         case .previousDisplay: return [123,125].flatMap { [ShortcutBinding($0, oc), .init($0, oc.union(.maskControl))] }
         case .restorePrimaryDisplay: return [.init(18, [.maskControl, .maskAlternate, .maskCommand])] // ⌃⌥⌘1
@@ -299,6 +304,8 @@ final class ShortcutManager: ObservableObject {
         switch action {
         case .screenshot: ScreenshotManager.shared.startCapture()
         case .clipboard: ClipboardManager.shared.toggleHUD()
+        case .cascadeTopLeft: WindowSnapManager.shared.cascadeWindows(.topLeft)
+        case .cascadeBottomRight: WindowSnapManager.shared.cascadeWindows(.bottomRight)
         case .nextDisplay: WindowSnapManager.shared.moveActiveWindowToDisplay(isNext: true)
         case .previousDisplay: WindowSnapManager.shared.moveActiveWindowToDisplay(isNext: false)
         case .restorePrimaryDisplay: DisplayManager.shared.restorePrimaryDisplay()

@@ -10,7 +10,8 @@ enum PrivilegedHelper {
     static let legacyPowerPath = "/usr/local/bin/displaycontrol-power"
 
     /// v3: đặt helper trong `/Library/PrivilegedHelperTools`, sudoers giới hạn đúng user cài, kiểm tra tham số đầu vào.
-    static let requiredVersion = 3
+    /// v4: thêm `sleep-disable on|off` (giữ máy chạy khi gập nắp).
+    static let requiredVersion = 4
 
     /// Lệnh `sudo` gọi helper theo đường dẫn tuyệt đối (không phụ thuộc `$PATH`).
     static func sudo(_ arguments: String) -> String {

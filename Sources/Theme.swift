@@ -27,6 +27,8 @@ enum Rad {
 
 /// Màu ngữ nghĩa: chỉ dùng màu khi nó mang ý nghĩa. Mọi thứ khác dùng accent hoặc xám.
 enum Tone {
+    /// Nền thẻ trong suốt nhẹ trên nền kính (vibrancy) của popover.
+    static let card = Color.primary.opacity(0.055)
     static let accent = Color.accentColor   // bật / đang chọn / hành động chính
     /// Xanh lá dịu (không dùng systemGreen chói): sáng hơn một chút ở dark mode.
     static let good = Color(nsColor: NSColor(name: nil) { appearance in
@@ -85,7 +87,7 @@ extension View {
     func cardBackground() -> some View {
         background(
             RoundedRectangle(cornerRadius: Rad.md, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(Tone.card)
                 .overlay(
                     RoundedRectangle(cornerRadius: Rad.md, style: .continuous)
                         .stroke(Color.primary.opacity(0.06), lineWidth: 1)

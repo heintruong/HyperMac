@@ -15,7 +15,7 @@ struct FanControlCardView: View {
             .padding(8)
             .background(
                 RoundedRectangle(cornerRadius: Rad.md, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .fill(Tone.card)
                     .overlay(RoundedRectangle(cornerRadius: Rad.md).stroke(Color.primary.opacity(0.06), lineWidth: 1))
             )
             .onAppear { syncSlider() }

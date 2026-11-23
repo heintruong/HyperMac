@@ -148,20 +148,20 @@ public struct PermissionsCardView: View {
                         }
                     )
 
-                    // 3. SMC Helper (Khóa sạc 80% & Quạt) - Phần cứng
+                    // 3. Helper root (Quạt & Gập máy vẫn chạy)
                     let helperVer = BatteryManager.shared.helperVersion
                     let helperActionTitle = (helperVer > 0 && helperVer < PrivilegedHelper.requiredVersion)
                         ? tr("Cập nhật v\(PrivilegedHelper.requiredVersion)", "Update to v\(PrivilegedHelper.requiredVersion)")
                         : tr("Cài đặt Helper", "Install Helper")
 
                     permissionRow(
-                        title: tr("3. Quản lý nguồn SMC & Quạt (Khóa sạc 80%)", "3. Power & Fan SMC Control (80% Lock)"),
+                        title: tr("3. Helper root (Quạt & Gập máy vẫn chạy)", "3. Root helper (Fans & Lid-closed awake)"),
                         tag: tr("PHẦN CỨNG", "HARDWARE"),
                         tagColor: .secondary,
                         icon: "bolt.batteryblock.fill",
                         iconColor: .secondary,
                         isGranted: permissionsManager.hasSMCHelper,
-                        reason: tr("Giao tiếp trực tiếp với chip SMC để ngắt dòng sạc ở 80% (chạy điện trực tiếp AC) và điều khiển quạt tản nhiệt. Yêu cầu nhập Touch ID / mật khẩu máy 1 lần.", "Direct SMC hardware access to bypass charging at 80% and adjust fan speeds. Requires 1-time admin password / Touch ID."),
+                        reason: tr("Chỉnh tốc độ quạt qua chip SMC và giữ máy chạy khi gập nắp. Yêu cầu nhập Touch ID / mật khẩu máy 1 lần.", "Adjust fan speeds via SMC and keep the Mac awake with the lid closed. Requires 1-time admin password / Touch ID."),
                         actionTitle: helperActionTitle,
                         action: {
                             permissionsManager.installSMCHelper()

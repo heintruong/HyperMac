@@ -114,7 +114,7 @@ public class PermissionsManager: ObservableObject {
             self.hasScreenCapture = screenTrusted
         }
 
-        // 3. SMC Helper (Khóa sạc 80%)
+        // 3. Helper root (quạt, gập máy vẫn chạy)
         let smcInstalled = BatteryManager.shared.isHelperInstalled
         if self.hasSMCHelper != smcInstalled {
             self.hasSMCHelper = smcInstalled

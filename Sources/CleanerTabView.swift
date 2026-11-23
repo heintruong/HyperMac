@@ -155,7 +155,7 @@ public struct CleanerTabView: View {
                 }
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: Rad.md).fill(Color(nsColor: .controlBackgroundColor)))
+            .background(RoundedRectangle(cornerRadius: Rad.md).fill(Tone.card))
 
             // Success feedback message
             if let msg = cleanerManager.cleanedMessage {
@@ -222,7 +222,7 @@ public struct CleanerTabView: View {
             .disabled(cat.sizeBytes == 0)
         }
         .padding(8)
-        .background(RoundedRectangle(cornerRadius: Rad.sm).fill(Color(nsColor: .controlBackgroundColor)))
+        .background(RoundedRectangle(cornerRadius: Rad.sm).fill(Tone.card))
     }
 
     // MARK: - SECTION 1: APP UNINSTALLER
@@ -369,7 +369,7 @@ public struct CleanerTabView: View {
                     .foregroundStyle(.tertiary)
             }
             .padding(7)
-            .background(RoundedRectangle(cornerRadius: Rad.sm).fill(Color(nsColor: .controlBackgroundColor)))
+            .background(RoundedRectangle(cornerRadius: Rad.sm).fill(Tone.card))
         }
         .buttonStyle(.plain)
     }
@@ -502,7 +502,7 @@ public struct CleanerTabView: View {
             .disabled(cleanerManager.isUninstalling)
         }
         .padding(8)
-        .background(RoundedRectangle(cornerRadius: Rad.md).fill(Color(nsColor: .controlBackgroundColor)))
+        .background(RoundedRectangle(cornerRadius: Rad.md).fill(Tone.card))
     }
 
     // MARK: - SECTION 2: LARGE & OLD FILES
@@ -624,6 +624,6 @@ public struct CleanerTabView: View {
             .help(tr("Chuyển vào Thùng rác", "Move to Trash"))
         }
         .padding(6)
-        .background(RoundedRectangle(cornerRadius: Rad.sm).fill(Color(nsColor: .controlBackgroundColor)))
+        .background(RoundedRectangle(cornerRadius: Rad.sm).fill(Tone.card))
     }
 }

@@ -1,13 +1,15 @@
 # AGENTS.md — HyperMac (DisplayControl)
 
-> Tài liệu dành cho AI coding agent (Antigravity IDE, OpenCode, Cursor, Claude Code…) đọc trước khi chỉnh sửa dự án. Cập nhật lần cuối: **2026-10-29 (v1.6.0)**.
+> Tài liệu dành cho AI coding agent (Claude Code, Cursor…) đọc trước khi chỉnh sửa dự án. Cập nhật lần cuối: **2026-11-23 (fork từ v1.9.8)**.
 
 ## 1. Tổng quan
 
 - **HyperMac** là app menu bar thuần Swift cho macOS 14+ (Apple Silicon), dùng SwiftPM + AppKit + SwiftUI.
-- Thư mục làm việc: `/Users/khacdai24/.gemini/antigravity-ide/scratch/DisplayControl`.
+- **Bản fork cá nhân:** `heintruong/HyperMac` (remote `origin`), bản gốc `mrgoose000000-gif/HyperMac` (remote `upstream`). Kéo bản mới của tác giả: `git fetch upstream && git merge upstream/main`.
+- Đã gỡ khỏi fork: bảng kích hoạt (mã Zalo), nút/bảng Donate, nút "Tác giả", ảnh QR; **khóa sạc 80% / sạc đầy tạm thời / hiệu chuẩn pin** (dùng giới hạn sạc có sẵn của macOS thay thế; helper không còn lệnh `charge-*`/`status`). Giữ nguyên ghi công bản quyền gốc (bắt buộc theo GPLv3).
+- Đã thêm ở fork: **Gập máy vẫn chạy**, **Xếp chồng cửa sổ (cascade)** và **Vuốt 3 ngón để chuyển cửa sổ** — xem mục 10.
 - Bundle ID: `com.opensource.hypermac`, tên app: `HyperMac`, chạy ẩn Dock (`LSUIElement`).
-- Tính năng: chia cửa sổ (Rectangle), AltTab, lịch sử Clipboard, khóa sạc 80%, chỉnh sáng màn ngoài, chống sleep, đo nhiệt độ.
+- Tính năng: chia cửa sổ (Rectangle) + xếp chồng cascade, AltTab, lịch sử Clipboard, cắt/dán Finder, thông tin pin + Sleep Guard, độ sáng/độ phân giải/màn ảo, chống sleep + gập máy vẫn chạy, nhiệt độ/quạt/CPU-RAM-GPU, tốc độ ổ đĩa, chụp màn hình có chú thích, ẩn icon menu bar, dọn rác/gỡ app.
 - **Fan Control:** đã gỡ ở v1.5.2, được người dùng yêu cầu thêm lại (bản đơn giản kiểu iStat Menus: System / Medium / High + thanh trượt %). Xem mục 9. Không mở rộng thêm (rules editor, curve…) trừ khi người dùng yêu cầu.
 
 ## 2. Build & kiểm tra
@@ -23,7 +25,15 @@ swift build -c release
 ./build.sh
 ```
 
-- **Quy ước người dùng xác nhận 2026-11-14:** Sau mỗi lần sửa và build/kiểm thử thành công, **luôn cài đè `/Applications/HyperMac.app` và mở lại để người dùng test ngay**, không cần hỏi lại. Giữ nguyên dữ liệu/cài đặt và identity ký cố định; ưu tiên đóng app bình thường (`NSRunningApplication.terminate()`) để chạy cleanup pin/quạt trước khi thay binary. Quyền cài local này **không** cho phép tự push/tag/tạo GitHub Release; vẫn chờ lệnh phát hành riêng.
+- **Quy ước của chủ fork:** Sau mỗi lần sửa và build/test thành công, **luôn cài đè `/Applications/HyperMac.app` và mở lại (`./build.sh`) để test ngay, không cần hỏi lại.** `build.sh` đóng app êm trước (để chạy cleanup pin/quạt/gập máy), chỉ `kill -9` nếu app không chịu thoát. Quyền này **không** bao gồm commit/push/tag/GitHub Release — vẫn chờ lệnh riêng.
+- **Chạy test** (máy chỉ có Command Line Tools, không có Xcode → phải trỏ plugin swift-testing):
+
+```bash
+CLT=/Library/Developer/CommandLineTools
+swift test -Xswiftc -plugin-path -Xswiftc $CLT/usr/lib/swift/host/plugins/testing \
+  -Xswiftc -F -Xswiftc $CLT/Library/Developer/Frameworks \
+  -Xlinker -rpath -Xlinker $CLT/Library/Developer/Frameworks
+```
 
 - `xcodebuild` không bắt buộc; máy hiện tại chỉ có Command Line Tools và build bằng SwiftPM.
 - Log runtime: `/tmp/displaycontrol.log` (hàm `appLog()` trong `Sources/Logger.swift`).
@@ -50,11 +60,14 @@ swift build -c release
 | `Sources/FanManager.swift` | Điều khiển quạt: đọc RPM qua `smc`, ghi qua helper, an toàn 90°C / thoát / ngủ |
 | `Sources/FanControlCardView.swift` | Thẻ Quạt trong tab Nhiệt độ & Cảm biến (ẩn nếu máy không có quạt) |
 | `Sources/DiskSpeedManager.swift` | Đo tốc độ đọc/ghi ổ vật lý (IOKit), interface LAN cho NAS, I/O theo tiến trình |
-| `Sources/BatteryManager.swift` | Khóa sạc 80%, helper SMC |
+| `Sources/BatteryManager.swift` | Thông tin pin, cảnh báo, Sleep Guard, kiểm tra/cài helper root |
 | `Sources/DisplayManager.swift` | Độ sáng, DDC/CI, màn hình ảo |
 | `Sources/VirtualDisplayManager.swift` + `VirtualDisplayBridge/` | Cầu nối Objective-C cho màn hình ảo |
 | `Sources/CaffeinateManager.swift` | Chống sleep màn hình |
-| `Sources/UpdateManager.swift` | Kiểm tra/tải bản cập nhật từ `version.json` trên GitHub |
+| `Sources/UpdateManager.swift` | Kiểm tra/tải bản cập nhật; repo ở `UpdateManager.repo` (= fork), fallback `version.json` nhánh `main` |
+| `Sources/ShortcutManager.swift` + `ShortcutSettingsView.swift` | Danh sách `ShortcutAction`, phím mặc định, lưu/đổi phím tắt, `perform()` điều phối hành động |
+| `Sources/PrivilegedHelper.swift` | Đường dẫn helper root + `requiredVersion` |
+| `Resources/displaycontrol-power` | Helper root (bash): sạc, quạt, `sleep-disable`; cài bằng `install-helper.sh` |
 | `Sources/ShellHelper.swift` | `shell()` đồng bộ + tìm binary Homebrew |
 
 ## 4. Quy ước
@@ -64,60 +77,13 @@ swift build -c release
 - `@MainActor` cho các manager; cập nhật state UI phải trên main thread.
 - Tránh chạy `Process`/`shell()` nặng trên main thread (gây khựng popover).
 - Lưu cài đặt qua `UserDefaults` với key có tiền tố rõ ràng (`clipboard_*`, `fan_*` cũ đã bỏ, `show_menubar_thermal`…).
-- Không hardcode đường dẫn tuyệt đối của máy dev (ví dụ `/Users/khacdai24/...`).
+- Không hardcode đường dẫn tuyệt đối của máy dev (ví dụ `/Users/<tên>/...`).
 - Giữ `Package.swift` ở `swift-tools-version: 5.9` (Swift 5 language mode) để tránh lỗi concurrency nghiêm ngặt.
 - **Không tự tạo tag/release hay push bản phát hành** khi chưa được người dùng xác nhận rõ ràng. Cứ build local, test xong, chờ lệnh.
 
-## 5. Thay đổi v1.5.2 (2026-10-28)
+## 5. Ghi chú kỹ thuật
 
-### 5.1. AltTab hết delay ~0.5s
-- `WindowManager.refreshWindows()` **không còn chụp thumbnail đồng bộ**; `thumbnail = nil` khi dựng danh sách.
-- `beginThumbnailCapture()` chụp ảnh nền bằng `DispatchQueue.global(qos: .userInitiated)`, cập nhật UI trên main; có `thumbnailGeneration` để huỷ khi HUD đóng.
-- HUD được hiện ngay sau khi liệt kê cửa sổ; ảnh xem trước xuất hiện dần.
-- Giảm `AXUIElementSetMessagingTimeout` từ `0.1` → `0.05`.
-- `showOverlay()` tái sử dụng `NSHostingController` (không tạo mới mỗi lần).
-- Thêm `handleModifierReleased()`; `KeyInterceptor` gọi hàm này khi nhả `⌘/⌥`.
-- `handleShortcut()` reset `isModifierHeld`/`gIsAltTabVisible` nếu danh sách cửa sổ rỗng.
-
-### 5.2. Clipboard: giới hạn lưu & dọn dẹp
-- `ClipboardManager.maxItemsCount`: `0` = **không giới hạn**; hỗ trợ 50/100/200/500/∞.
-- Thêm `autoCleanupDays` (UserDefaults key `clipboard_auto_cleanup_days`): `0/7/30/90` ngày.
-- `applyRetentionPolicy()` tự xoá mục **chưa ghim** cũ hơn số ngày cấu hình; chạy khi khởi động, khi thêm clip và khi đổi cài đặt.
-- `cleanupNow()` cho nút "Dọn ngay": trả về số mục đã xoá và hiện `cleanupMessage` (tự ẩn sau 3.5s). Trước đây bấm không có phản hồi nên trông như "không dọn" — thực chất chỉ xoá mục cũ hơn 30 ngày mà lịch sử toàn mục mới.
-- `requestClearAllUnpinned()` cho nút "Xoá tất cả": xoá mọi mục chưa ghim, cần bấm 2 lần (`pendingClearAllConfirm`, tự huỷ sau 4s).
-- `trimItems()` xử lý đúng trường hợp không giới hạn; luôn giữ mục đã ghim.
-- UI mới trong `Views.swift`: hàng chip giới hạn, hàng "Tự động xoá", 2 nút "Dọn ngay" / "Xoá tất cả", dòng thông báo kết quả, cảnh báo khi chọn ∞.
-
-### 5.3. Phím tắt Clipboard HUD
-- `KeyInterceptor.swift` xử lý khi `gIsClipboardHUDVisible`:
-  - `1–9` → `pasteItemAt(index:)` (chỉ khi ô tìm kiếm đang rỗng, cờ `gIsClipboardSearchEmpty`).
-  - `↑/↓` → `selectPrevious()/selectNext()`.
-  - `↵`/numpad Enter → `pasteSelectedItem()`.
-  - `⌥P` → `togglePinSelected()`; `⌥⌫` → `deleteSelectedItem()`; `⎋` → đóng.
-- `ClipboardManager` thêm `selectedItem`, `clampSelection()`, `selectNext/Previous`, `pasteSelectedItem`, `pasteItemAt`, `togglePinSelected`, `deleteSelectedItem`.
-- `⌘`/`⌃` được thả qua để không phá shortcut hệ thống.
-- `ClipboardOverlayView` Enter dùng mục đang chọn (không còn luôn dán mục đầu).
-
-### 5.4. Cỡ chữ phím tắt
-- `ClipboardOverlayView.legendItem`: 7.5 → 9.5/9.
-- `AltTabOverlayView.HintChip`: 8 → 9.5.
-- `Views.swift` `shortcutPill`: 8 → 9.5/9.
-
-### 5.5. Gỡ Fan Control
-- Xoá toàn bộ `activeFanControlCard`, 4 chế độ quạt, slider RPM, Smart Curve, preset RPM trong `Views.swift`.
-- `ThermalManager.swift` viết lại: chỉ còn đọc nhiệt độ HID/PMU, trạng thái thermal, pill nhiệt độ Menu Bar. Đã xoá `FanControlMode`, `ThermalSensorTarget`, `FanModel`, `detectFans`, `applyActiveFanProfile`, `restoreFansToAuto`.
-- `AppMain.applicationWillTerminate` không còn gọi `restoreFansToAuto()`.
-- `menuBarDisplayMode` bị bỏ; Menu Bar chỉ hiện `44°C`.
-- Tab "Quạt & Nhiệt độ" đổi thành **"Nhiệt độ & Cảm biến"**.
-
-### 5.6. Phiên bản & tài liệu
-- Bump `1.5.1` → `1.5.2` tại: `build.sh`, `Sources/UpdateManager.swift`, `version.json`, badge/README.
-- Thêm changelog v1.5.2 trong `README.md`.
-- Cần tạo tag `v1.5.2` và push để GitHub Actions tạo release khớp `version.json`.
-
-## 6. Thay đổi v1.6.0 (2026-10-28)
-
-### 6.1. Đo tốc độ chép file — `Sources/DiskSpeedManager.swift`
+### 5.1. Đo tốc độ chép file — `Sources/DiskSpeedManager.swift`
 - UI: `FileTransferSpeedCard` trong `HardwareCareTabView`, đặt ngay dưới thanh chọn
   Pin / Nhiệt độ (luôn hiển thị, không phụ thuộc segment đang chọn).
 - **Mặc định TẮT**: người dùng bật bằng switch trên card (lưu ở
@@ -163,7 +129,7 @@ swift build -c release
 **Debug:** đặt `HYPERMAC_DISKSPEED_DEBUG=1` để log mỗi mẫu vào `/tmp/displaycontrol.log`
 (dòng `💾 DiskSpeed: …`). Hook `HYPERMAC_DISKSPEED_TEST_HOST` đã được gỡ.
 
-### 6.2. Kiểm thử giao diện không cần chụp màn hình
+### 5.2. Kiểm thử giao diện không cần chụp màn hình
 - `HYPERMAC_PREVIEW=1` mở cửa sổ 380×570 chứa `MainView` (không tạo status item).
 - `HYPERMAC_PREVIEW_TAB=0|1|2` chọn tab (mặc định 1).
 - `HYPERMAC_PREVIEW_OUT=/tmp/ui.png` render thẳng ra PNG bằng `ImageRenderer`
@@ -176,19 +142,13 @@ swift build -c release
 - Lưu ý: `ImageRenderer` không render nội dung bên trong `ScrollView`, nên ảnh
   preview chỉ dùng để kiểm tra phần header/tab/card, không thay thế kiểm thử thật.
 
-### 6.3. Phiên bản & tài liệu
-- Bump `1.5.2` → `1.6.0` tại: `build.sh`, `Sources/UpdateManager.swift`, `version.json`,
-  badge + nút tải trong `README.md`.
-- Thêm changelog v1.6.0 trong `README.md`.
-- Cần tạo tag `v1.6.0` và push để GitHub Actions tạo release khớp `version.json`.
-
 ## 7. Chứng chỉ ký cố định (bắt buộc cho TCC)
 
 **Vấn đề:** ký ad-hoc (`codesign -s -`) khiến cdhash đổi sau mỗi lần build →
 macOS coi là app khác → **thu hồi quyền Accessibility** → `⌘Tab`, `⌘⇧C` không chạy
 cho tới khi người dùng cấp lại tay.
 
-**Giải pháp đã áp dụng:** chứng chỉ self-signed cố định `HyperMac Self-Signed`.
+**Giải pháp đã áp dụng:** chứng chỉ self-signed cố định `HyperMac Self-Signed`, sinh **trên máy chủ fork** (key nằm ở `~/.hypermac-signing/`, không liên quan chứng chỉ của tác giả gốc).
 
 ```bash
 ./scripts/setup-signing-identity.sh   # chạy 1 lần
@@ -199,8 +159,8 @@ cho tới khi người dùng cấp lại tay.
   import vào login keychain, rồi thêm trust policy Code Signing ở user domain.
 - `build.sh` tự dò identity; nếu có thì ký bằng nó, nếu không thì fallback ad-hoc
   (kèm cảnh báo). Có thể override bằng biến môi trường `HYPERMAC_SIGN_IDENTITY`.
-- Designated Requirement hiện tại (`codesign -d -r-`):
-  `identifier "com.opensource.hypermac" and certificate root = H"5f052de8…"`
+- Designated Requirement (`codesign -d -r-`) có dạng
+  `identifier "com.opensource.hypermac" and certificate root = H"…"`
   → **không phụ thuộc nội dung binary**, nên quyền TCC giữ nguyên qua mọi rebuild.
 
 **Nếu vẫn mất quyền / app không nhận phím tắt:**
@@ -260,26 +220,9 @@ khi đó quyền Accessibility sẽ mất sau update.
   `openssl base64 -d -A`, cuối cùng mới `base64 -D`, và tự nhận diện secret bị base64
   2 lớp.
 
-**Nên set secret bằng CLI để tránh dán sai** (đã từng dán cả câu lệnh `pbcopy …`):
-
-```bash
-gh secret set HYPERMAC_SIGNING_P12_BASE64 --repo mrgoose000000-gif/HyperMac \
-  < ~/.hypermac-signing/ci-signing.p12.base64
-gh secret set HYPERMAC_SIGNING_P12_PASSWORD --repo mrgoose000000-gif/HyperMac \
-  --body "hm-test-pass-2026"
-```
-
-Khi bước import fail, đọc lỗi bằng annotation công khai thay vì log:
-
-```bash
-gh run view <run-id> --repo mrgoose000000-gif/HyperMac \
-  --json jobs -q '.jobs[0].check_run_url' \
-  | xargs -I{} gh api {}/annotations --jq '.[] | "\(.title): \(.message)"'
-```
-
 **Lưu ý quan trọng:**
-- Chỉ cần **một lần** chuyển từ bản ad-hoc cũ (≤1.5.2) sang bản ký cert: TCC đổi
-  DR nên quyền mất một lần; từ các bản sau thì giữ nguyên.
+- Chuyển từ bản của tác giả sang bản fork tự ký: DR đổi nên quyền Accessibility/Screen
+  Recording mất **một lần**; từ đó giữ nguyên.
 - Không bao giờ tạo lại cert/key (root hash đổi → mất quyền của mọi người).
   Cert hiện có hạn 10 năm (`-days 3650`).
 - Secret chứa private key: nếu repo bị xâm nhập, key có thể bị lộ → phải tạo cert
@@ -301,42 +244,9 @@ gh run view <run-id> --repo mrgoose000000-gif/HyperMac \
 - `tccutil` chỉ reset được khi app có bundle ID hợp lệ; nếu không có, hàm bỏ qua im lặng.
 
 
-### 7.3. Bảo mật repo & khoá ký
-
-Private key trong secret = ai phát hành được app. Kiểm tra định kỳ bằng `gh`:
-
-```bash
-R=mrgoose000000-gif/HyperMac
-gh api repos/$R --jq '.permissions'                       # quyền của token hiện tại
-gh api "repos/$R/collaborators?affiliation=direct" --jq '.[] | "\(.login) \(.role_name)"'
-gh api "repos/$R/collaborators?affiliation=outside" --jq '.[] | .login'
-gh api "repos/$R/invitations" --jq '.[] | .invitee.login'
-gh api "repos/$R/actions/secrets" --jq '.secrets[] | "\(.name) \(.updated_at)"'
-gh api "repos/$R/environments"
-gh api "repos/$R/keys"      # deploy keys
-gh api "repos/$R/hooks"     # webhooks
-```
-
-Hiện trạng (2026-10-30): chỉ owner `mrgoose000000-gif` có quyền admin; 0 outside
-collaborator/invitation/team; 2 secret đúng tên; 0 environment; 0 deploy key;
-0 webhook; `main` **chưa bảo vệ**; `allowed_actions=all`; secret scanning +
-push protection đang bật.
-
-Khuyến nghị (chưa bắt buộc, làm khi cần siết):
-
-1. **Environment `release` + Required reviewers** rồi chuyển 2 secret vào environment
-   và thêm `environment: release` cho job trong `release.yml`. Khi đó dù ai push tag,
-   workflow vẫn phải chờ duyệt mới được dùng private key.
-2. **Ruleset cho `main`**: chặn force-push và xoá nhánh (solo dev vẫn dùng được).
-3. `Settings → Actions → General`: giới hạn allowed actions + bật *Require actions to
-   be pinned to a full-length commit SHA*.
-4. Bật 2FA/passkey cho tài khoản GitHub; xoá token cũ không dùng; kiểm tra
-   `Settings → Sessions`.
-5. Giữ `~/.hypermac-signing/` ngoài iCloud/Dropbox và bật FileVault.
-
 ## 8. Ghi chú kiểm thử
 
-- Máy test: `MacBookPro17,1` (MacBook Pro M1, 1 quạt 1199–7199 RPM), macOS 26. (Máy cũ `Mac14,2` MacBook Air M2 không có quạt: `smc -f` trả `Total fans in system: 0`, thẻ Quạt tự ẩn.)
+- Máy không có quạt (MacBook Air): `smc -f` trả `Total fans in system: 0`, thẻ Quạt tự ẩn.
 - Kiểm tra nhanh sau khi sửa:
   1. `⌘ + Tab` phải hiện HUD gần như tức thì (< ~100ms), thumbnail xuất hiện sau.
   2. `⌘ + ⇧ + C` mở Clipboard; thử `1–9`, `↑↓`, `↵`, `⌥P`, `⌥⌫`, `⎋`.
@@ -362,8 +272,8 @@ Khuyến nghị (chưa bắt buộc, làm khi cần siết):
 - Đọc (không cần root): `Resources/smc -k F0Ac|F0Tg|F0Md|F0Mn|F0Mx|FNum -r` (định dạng `F0Ac  [flt ]  2985 (bytes ...)`, giá trị là trường thứ 4 khi tách theo khoảng trắng).
 
 ### 9.3. Helper đặc quyền
-- `Resources/displaycontrol-power` (cài vào `/usr/local/bin`, sudoers NOPASSWD sẵn có) có thêm: `version` (in `HELPER_VERSION:2`), `fan-set <id 0-3> <rpm>` (chỉ nhận số nguyên trong khoảng min..max đọc từ SMC), `fan-auto <id>`.
-- `FanManager` yêu cầu helper phiên bản >= 2; bản helper cũ → thẻ Quạt hiện nút cài lại (`BatteryManager.installHelper`, hỏi mật khẩu 1 lần).
+- `Resources/displaycontrol-power` cài vào `/Library/PrivilegedHelperTools/com.opensource.hypermac.power` (sudoers NOPASSWD chỉ cho user cài): `version` (in `HELPER_VERSION:4`), `fan-set <id 0-3> <rpm>`, `fan-auto <id>`, `sleep-disable on|off`.
+- App yêu cầu `PrivilegedHelper.requiredVersion` (= 4); helper cũ → UI hiện nút cài lại (`BatteryManager.installHelper`, hỏi mật khẩu 1 lần). **Mỗi khi thêm lệnh vào helper phải tăng cả `HELPER_VERSION` lẫn `requiredVersion`.**
 - **Cài helper từ thư mục dưới `~/Documents`** bằng `osascript ... with administrator privileges` sẽ lỗi `Operation not permitted` (root bị TCC chặn). Sao chép 3 file (`install-helper.sh`, `smc`, `displaycontrol-power`) ra `/private/tmp/...` rồi cài từ đó. App đã cài trong `/Applications` thì không gặp lỗi này.
 
 ### 9.4. An toàn
@@ -377,5 +287,34 @@ Khuyến nghị (chưa bắt buộc, làm khi cần siết):
 - Thoát app khi đang Manual → quạt phải về auto.
 - Đường 90°C chưa có hook giả nhiệt độ (chưa kiểm thử tự động).
 
-### 9.6. Bản build cục bộ: tắt cập nhật tự động
-- `UpdateManager.updatesDisabled = true`: không kiểm tra/tải cập nhật (không có kết nối mạng nào của app). Lý do: updater không kiểm chữ ký, URL tải lấy từ `version.json`, file tạm ở `/tmp`. Đặt `false` để bật lại — quyết định của người dùng khi commit/phát hành.
+### 9.6. Cập nhật tự động
+- `UpdateManager.repo = "heintruong/HyperMac"`: kiểm tra GitHub Release mới nhất của fork, fallback `version.json` trên `main`. Khi phát hành bản mới phải bump đồng bộ `build.sh` (CFBundleVersion), `UpdateManager.currentVersion`, `version.json`.
+- Bảo mật updater: bản tải về phải thoả Designated Requirement của chính app đang chạy (`UpdateManager.isSignedLikeSelf`, tức cùng chứng chỉ `HyperMac Self-Signed` của bạn) mới được cài; file tạm nằm trong `$TMPDIR/HyperMac-update` (riêng user), log ở `~/Library/Logs/hypermac_updater.log`; chỉ gỡ cờ quarantine sau khi đã kiểm chữ ký. Muốn phát hành qua GitHub Release thì bản trên Release phải ký bằng cùng chứng chỉ (xem mục 7.1). Tắt hẳn bằng `updatesDisabled = true`.
+
+## 10. Tính năng riêng của fork
+
+### 10.1. Gập máy vẫn chạy — `CaffeinateManager` + `LidAwakeCardView` (thẻ riêng dưới "Chống sleep màn")
+- Công tắc gọi helper `sleep-disable on|off` → `pmset -a disablesleep 1|0` (máy không ngủ khi gập nắp, kể cả không cắm màn ngoài).
+- Không lưu qua lần mở app. Khi thoát app → tắt đồng bộ. Nếu app crash khi đang bật, cờ `lid_awake_applied` khiến lần mở sau tự tắt.
+- Helper chưa cài / cũ → công tắc báo lỗi + nút "Cài helper".
+- Rủi ro: máy vẫn toả nhiệt khi gập — đừng bỏ balo khi đang bật.
+- Màn hình vẫn tắt khi gập; chỉ chặn máy ngủ (độc lập với "Chống sleep màn" = giữ màn sáng).
+
+### 10.2. Xếp chồng cửa sổ (cascade) — `WindowSnapManager.cascadeWindows(_:)`
+- Lấy cửa sổ chuẩn (`AXStandardWindow`, layer 0, đang hiện) trên màn hình chứa cửa sổ trước nhất, theo thứ tự trước → sau (`CGWindowListCopyWindowInfo`), ghép với AX theo khung.
+- `cascadeRects`: mọi cửa sổ ngang cùng kích thước `(1 - cascadeSpread)` = 90% vùng hiển thị; 10% còn lại chia đều cho các bước lệch nên cửa sổ sau luôn lộ một dải.
+- `cascadeLayout`: cửa sổ dọc (cao > rộng × `portraitRatio` 1.15, vd. Android emulator) **giữ nguyên kích thước đang mở**, chỉ dời sát mép phải (căn trên, nhiều cái thì xếp cạnh nhau); cửa sổ ngang cascade ở phần còn lại. Chỉ toàn cửa sổ dọc → cascade thường.
+  - `.topLeft` (⌃⌥[): cửa sổ trước nhất ở góc trên trái, các cửa sổ sau lệch dần xuống dưới phải.
+  - `.bottomRight` (⌃⌥]): ngược lại.
+- Kích hoạt: phím tắt (đổi được trong cài đặt phím tắt) hoặc 2 nút trong thẻ "Chia cửa sổ" của popover. Dùng `applyFrame` nên `⌃⌥⌫` (khôi phục kích thước) vẫn hoạt động sau khi xếp.
+- Test: `Tests/ScreenshotAnnotationTests/CascadeTests.swift`.
+
+### 10.4. Popover
+- `NSPopover.animates = false` (mở tức thì). Không đặt nền đục cho `MainView` để popover dùng nền kính/vibrancy của macOS; thẻ dùng `Tone.card` (primary 5.5% opacity) thay cho `controlBackgroundColor`.
+
+### 10.3. Vuốt 3 ngón để chuyển cửa sổ — `Sources/TrackpadSwipeSwitcher.swift`
+- Công tắc trong thẻ "Chuyển cửa sổ" (key `alttab_gesture_enabled`, mặc định tắt). Tắt = không có event tap nào chạy.
+- Event tap riêng, `.listenOnly`, chỉ nghe sự kiện gesture (type 29); đọc `NSEvent.allTouches()` → `SwipeTracker` (logic thuần).
+- Vuốt ngang ≥ `openThreshold` → `WindowManager.handleShortcut` (phải = tới, trái = lùi); vuốt tiếp mỗi `stepThreshold` → `selectNext/Previous`; số ngón khác 3 → `handleModifierReleased()` (chuyển cửa sổ). Esc vẫn huỷ như bình thường.
+- Cử chỉ 3 ngón của macOS ("Vuốt giữa các ứng dụng toàn màn hình") vẫn chạy song song → nên đổi sang 4 ngón trong Cài đặt Trackpad.
+- Test: `Tests/ScreenshotAnnotationTests/SwipeTrackerTests.swift`.
