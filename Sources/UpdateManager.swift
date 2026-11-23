@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Combine
+import Security
 
 // MARK: - Update Status States
 
@@ -89,6 +90,27 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
     private var htmlUrl: URL?
     private var downloadRetryCount: Int = 0
     private static let maxDownloadRetries: Int = 2
+
+    /// Thư mục tạm riêng của user ($TMPDIR, quyền 700) cho file cập nhật — không dùng /tmp dùng chung.
+    nonisolated private static var updateWorkDir: URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("HyperMac-update", isDirectory: true)
+    }
+
+    /// Bản cập nhật phải được ký bằng đúng chứng chỉ của app đang chạy (Designated Requirement của chính nó).
+    /// App đang chạy ký ad-hoc → DR gắn với cdhash → mọi bản cập nhật đều bị từ chối (an toàn).
+    nonisolated static func isSignedLikeSelf(_ appPath: String) -> Bool {
+        var me: SecCode?
+        var meStatic: SecStaticCode?
+        var requirement: SecRequirement?
+        var candidate: SecStaticCode?
+        guard SecCodeCopySelf([], &me) == errSecSuccess, let me,
+              SecCodeCopyStaticCode(me, [], &meStatic) == errSecSuccess, let meStatic,
+              SecCodeCopyDesignatedRequirement(meStatic, [], &requirement) == errSecSuccess, let requirement,
+              SecStaticCodeCreateWithPath(URL(fileURLWithPath: appPath) as CFURL, [], &candidate) == errSecSuccess,
+              let candidate else { return false }
+        let flags = SecCSFlags(rawValue: SecCSFlags.RawValue(kSecCSCheckAllArchitectures | kSecCSCheckNestedCode | kSecCSStrictValidate))
+        return SecStaticCodeCheckValidity(candidate, flags, requirement) == errSecSuccess
+    }
 
     public override init() {
         super.init()
@@ -374,8 +396,11 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
             return
         }
 
-        let tempZip = URL(fileURLWithPath: "/tmp/HyperMac_update.zip")
-        try? FileManager.default.removeItem(at: tempZip)
+        let workDir = Self.updateWorkDir
+        try? FileManager.default.removeItem(at: workDir)
+        try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+        let tempZip = workDir.appendingPathComponent("HyperMac_update.zip")
 
         do {
             let attrs = try FileManager.default.attributesOfItem(atPath: location.path)
@@ -413,7 +438,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
     /// Giải nén + kiểm tra gói cập nhật TRƯỚC khi thoát app.
     /// Nếu zip hỏng/không phải HyperMac, app đang chạy vẫn nguyên vẹn.
     private func stageAndInstall(zipPath: String) {
-        let staging = "/tmp/HyperMac_staging"
+        let staging = Self.updateWorkDir.appendingPathComponent("staging").path
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
@@ -453,6 +478,15 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
                 return
             }
 
+            guard Self.isSignedLikeSelf(appPath) else {
+                appLog("⛔️ UpdateManager: bản cập nhật không được ký bằng chứng chỉ của app hiện tại — từ chối cài")
+                try? fm.removeItem(at: Self.updateWorkDir)
+                DispatchQueue.main.async {
+                    self?.state = .failed("Bản cập nhật không được ký bằng chứng chỉ của bạn nên đã bị từ chối. App hiện tại không bị ảnh hưởng.")
+                }
+                return
+            }
+
             DispatchQueue.main.async {
                 self?.performInPlaceUpdate(stagedAppPath: appPath, zipPath: zipPath)
             }
@@ -463,7 +497,8 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
 
     private func performInPlaceUpdate(stagedAppPath: String, zipPath: String) {
         let currentPid = ProcessInfo.processInfo.processIdentifier
-        let updaterScriptPath = "/tmp/hypermac_in_place_updater.sh"
+        let updaterScriptPath = Self.updateWorkDir.appendingPathComponent("updater.sh").path
+        let logPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/hypermac_updater.log").path
 
         let appPath = "/Applications/HyperMac.app"
         let newPath = "/Applications/.HyperMac.new"
@@ -471,7 +506,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
 
         let script = """
         #!/bin/bash
-        exec > /tmp/hypermac_updater.log 2>&1
+        exec > "\(logPath)" 2>&1
 
         echo "🔄 HyperMac Updater started for PID \(currentPid)..."
         PID="\(currentPid)"
@@ -499,7 +534,8 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
             open "$APP"
             exit 1
         fi
-        xattr -cr "$NEW" 2>/dev/null || true
+        # Chữ ký đã được kiểm (đúng chứng chỉ của bạn) trước khi tới đây; chỉ gỡ cờ quarantine.
+        xattr -dr com.apple.quarantine "$NEW" 2>/dev/null || true
 
         # 3. Đổi chỗ có backup để rollback nếu lỗi
         rm -rf "$BAK"
@@ -517,7 +553,7 @@ public class UpdateManager: NSObject, ObservableObject, URLSessionDownloadDelega
         fi
 
         # 4. Dọn dẹp
-        rm -rf "$STAGED" "\(zipPath)" "\(updaterScriptPath)"
+        rm -rf "\(Self.updateWorkDir.path)"
         echo "✅ Update complete."
         """
 

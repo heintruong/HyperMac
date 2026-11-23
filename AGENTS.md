@@ -289,7 +289,7 @@ khi đó quyền Accessibility sẽ mất sau update.
 
 ### 9.6. Cập nhật tự động
 - `UpdateManager.repo = "heintruong/HyperMac"`: kiểm tra GitHub Release mới nhất của fork, fallback `version.json` trên `main`. Khi phát hành bản mới phải bump đồng bộ `build.sh` (CFBundleVersion), `UpdateManager.currentVersion`, `version.json`.
-- Updater không kiểm chữ ký bản tải về; tắt bằng `updatesDisabled = true` nếu không cần.
+- Bảo mật updater: bản tải về phải thoả Designated Requirement của chính app đang chạy (`UpdateManager.isSignedLikeSelf`, tức cùng chứng chỉ `HyperMac Self-Signed` của bạn) mới được cài; file tạm nằm trong `$TMPDIR/HyperMac-update` (riêng user), log ở `~/Library/Logs/hypermac_updater.log`; chỉ gỡ cờ quarantine sau khi đã kiểm chữ ký. Muốn phát hành qua GitHub Release thì bản trên Release phải ký bằng cùng chứng chỉ (xem mục 7.1). Tắt hẳn bằng `updatesDisabled = true`.
 
 ## 10. Tính năng riêng của fork
 
