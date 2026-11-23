@@ -46,7 +46,7 @@ struct ShortcutSettingsView: View {
     @ObservedObject var manager: ShortcutManager
     private let groups: [(String, [ShortcutAction])] = [
         (tr("Mở chức năng", "Open features"), [.screenshot, .clipboard, .switchWindows, .menuBar]),
-        (tr("Chia cửa sổ", "Arrange windows"), [.leftHalf, .rightHalf, .topHalf, .bottomHalf, .maximize, .center, .restoreWindow, .topLeft, .topRight, .bottomLeft, .bottomRight, .cascadeTopLeft, .cascadeBottomRight]),
+        (tr("Chia cửa sổ", "Arrange windows"), [.leftHalf, .rightHalf, .topHalf, .bottomHalf, .maximize, .center, .restoreWindow, .topLeft, .topRight, .bottomLeft, .bottomRight, .cascadeTopLeft, .cascadeBottomRight, .stackSwapUp, .stackSwapDown]),
         (tr("Màn hình", "Displays"), [.restorePrimaryDisplay, .nextDisplay, .previousDisplay])
     ]
     var body: some View {

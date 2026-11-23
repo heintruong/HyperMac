@@ -435,8 +435,40 @@ public class WindowSnapManager: ObservableObject {
 
     /// Xếp chồng mọi cửa sổ chuẩn đang hiện trên màn hình chứa cửa sổ trước nhất.
     public func cascadeWindows(_ anchor: CascadeAnchor) {
+        guard let (screen, targets) = stackCandidates() else { return }
+        let rects = Self.cascadeLayout(frames: targets.map(\.frame), visible: Self.axVisibleFrame(for: screen), anchor: anchor)
+        appLog("🪟 Cascade \(anchor): \(targets.count) windows on [\(screen.localizedName)]")
+        for (target, rect) in zip(targets, rects) {
+            applyFrame(to: target.element, rect: rect, current: target.frame, animated: true)
+        }
+    }
+
+    /// Chỉ số cửa sổ kề trên (up) / dưới trong chồng, xếp theo vị trí trên màn hình (trên → dưới, trái → phải).
+    nonisolated public static func stackNeighbor(frames: [CGRect], focused: Int, up: Bool) -> Int? {
+        let order = frames.indices.sorted { (frames[$0].minY, frames[$0].minX) < (frames[$1].minY, frames[$1].minX) }
+        guard let pos = order.firstIndex(of: focused) else { return nil }
+        let next = up ? pos - 1 : pos + 1
+        return order.indices.contains(next) ? order[next] : nil
+    }
+
+    /// Hoán đổi vị trí cửa sổ đang focus với cửa sổ nằm ngay trên/dưới nó trong chồng (cùng kích thước).
+    public func swapInStack(up: Bool) {
+        guard let focused = getFocusedWindow(),
+              let (_, all) = stackCandidates(around: CGRect(origin: focused.currentPos, size: focused.currentSize)) else { return }
+        let size = focused.currentSize
+        let stack = all.filter { abs($0.frame.width - size.width) < 3 && abs($0.frame.height - size.height) < 3 }
+        guard let idx = stack.firstIndex(where: { CFEqual($0.element, focused.element) }),
+              let n = Self.stackNeighbor(frames: stack.map(\.frame), focused: idx, up: up) else { return }
+        let a = stack[idx], b = stack[n]
+        appLog("🪟 Swap in stack (\(up ? "lên" : "xuống")): \(a.frame.origin) ⇄ \(b.frame.origin)")
+        applyFrame(to: a.element, rect: b.frame, current: a.frame, animated: true)
+        applyFrame(to: b.element, rect: a.frame, current: b.frame, animated: true)
+    }
+
+    /// Cửa sổ chuẩn đang hiện (thứ tự trước → sau) trên màn hình chứa `around`, hoặc chứa cửa sổ trước nhất.
+    private func stackCandidates(around: CGRect? = nil) -> (NSScreen, [(element: AXUIElement, frame: CGRect)])? {
         guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
-                                                    kCGNullWindowID) as? [[String: Any]] else { return }
+                                                    kCGNullWindowID) as? [[String: Any]] else { return nil }
         let myPid = getpid()
         // CGWindowList trả về theo thứ tự trước → sau.
         let cgWindows: [(pid: pid_t, rect: CGRect)] = info.compactMap { w in
@@ -449,8 +481,8 @@ public class WindowSnapManager: ObservableObject {
             return (pid, rect)
         }
         let screens = orderedScreens()
-        guard let front = cgWindows.first, !screens.isEmpty else { return }
-        let screen = screenContaining(windowRect: front.rect, in: screens)
+        guard let anchorRect = around ?? cgWindows.first?.rect, !screens.isEmpty else { return nil }
+        let screen = screenContaining(windowRect: anchorRect, in: screens)
 
         // Ghép cửa sổ CG với AXUIElement cùng app theo khung (CG và AX cùng toạ độ gốc trên-trái).
         var axByPid: [pid_t: [(element: AXUIElement, frame: CGRect)]] = [:]
@@ -477,12 +509,7 @@ public class WindowSnapManager: ObservableObject {
                 targets.append(match)
             }
         }
-
-        let rects = Self.cascadeLayout(frames: targets.map(\.frame), visible: Self.axVisibleFrame(for: screen), anchor: anchor)
-        appLog("🪟 Cascade \(anchor): \(targets.count) windows on [\(screen.localizedName)]")
-        for (target, rect) in zip(targets, rects) {
-            applyFrame(to: target.element, rect: rect, current: target.frame, animated: true)
-        }
+        return (screen, targets)
     }
 
     // MARK: - Cross-Display Window Transfer (Option + Command + Arrow keys)

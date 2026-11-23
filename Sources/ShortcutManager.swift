@@ -43,7 +43,7 @@ enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
     case screenshot, clipboard, switchWindows
     case leftHalf, rightHalf, topHalf, bottomHalf, maximize, center, restoreWindow
     case topLeft, topRight, bottomLeft, bottomRight
-    case cascadeTopLeft, cascadeBottomRight
+    case cascadeTopLeft, cascadeBottomRight, stackSwapUp, stackSwapDown
     case nextDisplay, previousDisplay, restorePrimaryDisplay, menuBar
     var id: String { rawValue }
     var title: String {
@@ -64,6 +64,8 @@ enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
         case .bottomRight: return tr("Góc dưới phải", "Bottom right")
         case .cascadeTopLeft: return tr("Xếp chồng từ trên trái", "Cascade from top left")
         case .cascadeBottomRight: return tr("Xếp chồng từ dưới phải", "Cascade from bottom right")
+        case .stackSwapUp: return tr("Đổi chỗ với cửa sổ trên (chồng)", "Swap with window above (stack)")
+        case .stackSwapDown: return tr("Đổi chỗ với cửa sổ dưới (chồng)", "Swap with window below (stack)")
         case .nextDisplay: return tr("Sang màn hình tiếp", "Next display")
         case .previousDisplay: return tr("Sang màn hình trước", "Previous display")
         case .restorePrimaryDisplay: return tr("Mở màn hình chính", "Turn on built-in screen")
@@ -90,6 +92,8 @@ enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
         case .bottomRight: return [40,85].map { .init($0, co) }
         case .cascadeTopLeft: return [.init(33, co)]     // ⌃⌥[
         case .cascadeBottomRight: return [.init(30, co)] // ⌃⌥]
+        case .stackSwapUp: return [.init(126, co.union(.maskShift))]   // ⌃⌥⇧↑
+        case .stackSwapDown: return [.init(125, co.union(.maskShift))] // ⌃⌥⇧↓
         case .nextDisplay: return [124,126].flatMap { [ShortcutBinding($0, oc), .init($0, oc.union(.maskControl))] }
         case .previousDisplay: return [123,125].flatMap { [ShortcutBinding($0, oc), .init($0, oc.union(.maskControl))] }
         case .restorePrimaryDisplay: return [.init(18, [.maskControl, .maskAlternate, .maskCommand])] // ⌃⌥⌘1
@@ -306,6 +310,8 @@ final class ShortcutManager: ObservableObject {
         case .clipboard: ClipboardManager.shared.toggleHUD()
         case .cascadeTopLeft: WindowSnapManager.shared.cascadeWindows(.topLeft)
         case .cascadeBottomRight: WindowSnapManager.shared.cascadeWindows(.bottomRight)
+        case .stackSwapUp: WindowSnapManager.shared.swapInStack(up: true)
+        case .stackSwapDown: WindowSnapManager.shared.swapInStack(up: false)
         case .nextDisplay: WindowSnapManager.shared.moveActiveWindowToDisplay(isNext: true)
         case .previousDisplay: WindowSnapManager.shared.moveActiveWindowToDisplay(isNext: false)
         case .restorePrimaryDisplay: DisplayManager.shared.restorePrimaryDisplay()
